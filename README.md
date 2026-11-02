@@ -33,8 +33,8 @@ Copy-Item data/canteen.txt data/demo.txt
 已有MinGW GCC时，无需安装其他依赖：
 
 ```powershell
-gcc -std=c99 -Wall -Wextra -Wpedantic -Werror -I include src/canteen.c src/main.c -o canteen.exe
-gcc -std=c99 -Wall -Wextra -Wpedantic -Werror -I include src/canteen.c tests/test_core.c -o core_tests.exe
+gcc -std=c99 -Wall -Wextra -Wpedantic -Werror -I include src/card.c src/dish.c src/consumption.c src/statistics.c src/storage.c src/validation.c src/console.c src/main.c -o canteen.exe
+gcc -std=c99 -Wall -Wextra -Wpedantic -Werror -I include src/card.c src/dish.c src/consumption.c src/statistics.c src/storage.c src/validation.c tests/test_core.c -o core_tests.exe
 .\core_tests.exe
 ```
 
@@ -65,10 +65,11 @@ cmake --build build-qt
 
 ## 源码阅读顺序及三人协作建议
 
-1. `include/canteen.h`：卡、菜品、消费记录与函数接口；`src/canteen.c`：参数检查、顺序查找、购买、文本存档。建议一位成员负责理解和扩展业务核心及存储。
-2. `src/main.c`：字符菜单、输入检查、销售排序、学生卡统计。建议一位成员负责交互及统计。
-3. `gui/main.cpp`：Qt交互与C接口调用；`tests/test_core.c`：可重复的业务测试。建议一位成员负责图形界面、测试和集成。
+1. `include/canteen_types.h`定义公共数据类型；`card.h/.c`负责学生卡，`dish.h/.c`负责菜单。建议一位成员负责这些业务模块。
+2. `consumption.h/.c`负责扣款与流水，`statistics.h/.c`负责排名和消费汇总，`storage.h/.c`负责文件存取，`validation.h/.c`负责输入校验。建议一位成员负责消费、统计和存储。
+3. `console.h`与`src/console.c`负责字符交互；`gui/window.h`声明Qt窗口，`gui/window.cpp`实现窗口方法；两个`main`文件仅负责启动。建议一位成员负责界面、测试和集成。
 
+每个模块的`.h`声明接口、参数和返回值，`.c`实现函数。调用方按需包含头文件，所有实现文件分别编译后链接，不通过包含`.c`拼接代码。`include/canteen.h`仅保留为兼容原调用的聚合头文件。统计计算由C模块统一提供，字符版和Qt版只展示结果。
 以上只是后续协作建议，不代表三个人已经完成的贡献。课程要求每位成员实际参与编程，后续按真实代码与工作量记录贡献比例。
 
 ## 功能与实现说明

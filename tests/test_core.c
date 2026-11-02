@@ -52,6 +52,22 @@ int main(void)
     CHECK(!load_data(&loaded, "test_bad.txt"));
     CHECK(memcmp(&loaded, &before, sizeof(loaded)) == 0);
     CHECK(!save_data(&s, "missing_directory/state.txt"));
+    /* 独立统计模块必须按历史成交价汇总，且不能改变业务数据。 */
+    {
+        ConsumptionSummary card = card_summary(&s, 1001); /* 学生消费汇总 */
+        ConsumptionSummary dish = dish_summary(&s, 1);    /* 删除菜品仍保留收入 */
+        int order[MAX_DISHES];                            /* 排名下标 */
+        CHECK(card.count == 1 && card.amount == 150);
+        CHECK(dish.count == 1 && dish.amount == 150);
+        CHECK(card_summary(&s, 9999).count == 0);
+        CHECK(!put_dish(&s, 3, "菜三", 100));
+        CHECK(!put_dish(&s, 2, "菜二", 100));
+        before = s;
+        CHECK(sales_ranking(&s, order) == 3);
+        CHECK(s.dishes[order[0]].id == 1);
+        CHECK(s.dishes[order[1]].id == 2 && s.dishes[order[2]].id == 3);
+        CHECK(memcmp(&s, &before, sizeof(s)) == 0);
+    }
     remove("test_state.txt");
     remove("test_bad.txt");
     puts("All core tests passed.");

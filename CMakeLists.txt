@@ -2,7 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 project(Canteen LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_library(canteen_core src/canteen.c)
+add_library(canteen_core
+  src/card.c
+  src/dish.c
+  src/consumption.c
+  src/statistics.c
+  src/storage.c
+  src/validation.c
+)
 target_include_directories(canteen_core PUBLIC include)
 if(MSVC)
   add_compile_options(/utf-8)
@@ -10,7 +17,7 @@ if(MSVC)
 else()
   target_compile_options(canteen_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-add_executable(canteen src/main.c)
+add_executable(canteen src/main.c src/console.c)
 target_link_libraries(canteen PRIVATE canteen_core)
 enable_testing()
 add_executable(core_tests tests/test_core.c)
@@ -21,6 +28,6 @@ if(BUILD_QT_GUI)
   set(CMAKE_CXX_STANDARD 17)
   find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
   find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
-  add_executable(canteen_gui gui/main.cpp)
+  add_executable(canteen_gui gui/main.cpp gui/window.cpp gui/window.h)
   target_link_libraries(canteen_gui PRIVATE canteen_core Qt${QT_VERSION_MAJOR}::Widgets)
 endif()
