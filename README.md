@@ -1,5 +1,13 @@
 # 食堂自动化管理系统
 
+## 下载
+
+- **Windows图形版与控制台版（无需安装Qt）**：[打开最新Release](https://github.com/5noname07/Program-design/releases/latest)，下载附件`Canteen-v1.0.0-Windows-x64.zip`，完整解压后双击`canteen_gui.exe`。管理员默认密码`admin123`，学生测试卡号`1001`。
+- **v1.0.0源码**：[下载源码ZIP](https://github.com/5noname07/Program-design/archive/refs/tags/v1.0.0.zip)。源码需要自行编译，步骤见下文。
+- **最新开发源码**：[下载main分支ZIP](https://github.com/5noname07/Program-design/archive/refs/heads/main.zip)，或执行`git clone https://github.com/5noname07/Program-design.git`。
+
+可运行包仅面向Windows x64；源码可在适配的平台编译。请完整解压，保留DLL、插件和`data`文件夹，不要只复制exe。升级前备份自己的`data/canteen.txt`，避免用演示存档覆盖个人数据。
+
 对应《1 B250122_课题》课题15。业务核心、文件读写和字符菜单采用C99；可选图形界面采用Qt Widgets与C++，通过`extern "C"`调用C核心。无需数据库、Web服务或第三方业务库。CMake仅用于构建。本次没有编写或修改实习报告。
 
 ## 直接运行
