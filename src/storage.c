@@ -7,7 +7,55 @@
 #include <string.h>
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <sys/file.h>
+#include <unistd.h>
 #endif
+
+/* 先读取数字文本再校验，避免scanf直接转换超出int范围的文本。 */
+static int read_integer(FILE *file, int *value)
+{
+    char token[80]; /* 含零字符的有界数字缓冲区 */
+    return fscanf(file, "%79s", token) == 1 && parse_integer(token, value);
+}
+
+void *lock_data(const char *path)
+{
+    char lock_path[1024]; /* 与数据文件配套的锁文件路径 */
+    if (snprintf(lock_path, sizeof(lock_path), "%s.lock", path) >= (int)sizeof(lock_path))
+        return NULL;
+#ifdef _WIN32
+    {
+        HANDLE handle =
+            CreateFileA(lock_path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        return handle == INVALID_HANDLE_VALUE ? NULL : (void *)handle;
+    }
+#else
+    {
+        FILE *file = fopen(lock_path, "a+"); /* 由内核锁保护，不按文件是否存在判断 */
+        if (!file)
+            return NULL;
+        if (flock(fileno(file), LOCK_EX | LOCK_NB) != 0)
+        {
+            fclose(file);
+            return NULL;
+        }
+        return file;
+    }
+#endif
+}
+
+void unlock_data(void *lock)
+{
+    if (!lock)
+        return;
+#ifdef _WIN32
+    CloseHandle((HANDLE)lock);
+#else
+    fclose((FILE *)lock);
+#endif
+}
 
 int save_data(const Canteen *s, const char *path)
 {
@@ -58,8 +106,8 @@ int load_data(Canteen *s, const char *path)
     int i, j, ok = 0;                                   /* 读取下标、重复检查下标和结果 */
     if (!f || !t)
         goto finish;
-    if (fscanf(f, "%15s%d%d%d", magic, &t->card_count, &t->dish_count, &t->record_count) !=
-            4 ||
+    if (fscanf(f, "%15s", magic) != 1 || !read_integer(f, &t->card_count) ||
+        !read_integer(f, &t->dish_count) || !read_integer(f, &t->record_count) ||
         strcmp(magic, "CANTEEN1"))
         goto finish;
     if (t->card_count < 0 || t->card_count > MAX_CARDS || t->dish_count < 0 ||
@@ -68,9 +116,9 @@ int load_data(Canteen *s, const char *path)
     for (i = 0; i < t->card_count; ++i)
     {
         Card *c = &t->cards[i]; /* 待读取卡 */
-        if (fscanf(f, "%d%63s%d%d", &c->id, c->name, &c->balance, &c->lost) != 4 ||
-            c->id <= 0 || c->balance < 0 || (c->lost != 0 && c->lost != 1) ||
-            !valid_name(c->name))
+        if (!read_integer(f, &c->id) || fscanf(f, "%63s", c->name) != 1 ||
+            !read_integer(f, &c->balance) || !read_integer(f, &c->lost) || c->id <= 0 ||
+            c->balance < 0 || (c->lost != 0 && c->lost != 1) || !valid_name(c->name))
             goto finish;
         for (j = 0; j < i; ++j)
             if (t->cards[j].id == c->id)
@@ -79,10 +127,11 @@ int load_data(Canteen *s, const char *path)
     for (i = 0; i < t->dish_count; ++i)
     {
         Dish *d = &t->dishes[i]; /* 待读取菜 */
-        if (fscanf(f, "%d%63s%d%d%d", &d->id, d->name, &d->price, &d->sales, &d->active) !=
-                5 ||
-            d->id <= 0 || d->price <= 0 || d->sales < 0 || d->sales > MAX_RECORDS ||
-            (d->active != 0 && d->active != 1) || !valid_name(d->name))
+        if (!read_integer(f, &d->id) || fscanf(f, "%63s", d->name) != 1 ||
+            !read_integer(f, &d->price) || !read_integer(f, &d->sales) ||
+            !read_integer(f, &d->active) || d->id <= 0 || d->price <= 0 || d->sales < 0 ||
+            d->sales > MAX_RECORDS || (d->active != 0 && d->active != 1) ||
+            !valid_name(d->name))
             goto finish;
         for (j = 0; j < i; ++j)
             if (t->dishes[j].id == d->id)
@@ -91,10 +140,11 @@ int load_data(Canteen *s, const char *path)
     for (i = 0; i < t->record_count; ++i)
     {
         Record *r = &t->records[i]; /* 待读取消费流水 */
-        if (fscanf(f, "%d%d%63s%d%19s", &r->card_id, &r->dish_id, r->name, &r->amount,
-                   r->time) != 5 ||
-            r->amount <= 0 || card_index(t, r->card_id) < 0 || dish_index(t, r->dish_id) < 0 ||
-            strlen(r->time) != 19 || !valid_name(r->name))
+        if (!read_integer(f, &r->card_id) || !read_integer(f, &r->dish_id) ||
+            fscanf(f, "%63s", r->name) != 1 || !read_integer(f, &r->amount) ||
+            fscanf(f, "%19s", r->time) != 1 || r->amount <= 0 ||
+            card_index(t, r->card_id) < 0 || dish_index(t, r->dish_id) < 0 ||
+            !valid_timestamp(r->time) || !valid_name(r->name))
             goto finish;
     }
     /* 流水是销量的依据，拒绝统计值与流水不一致的数据文件。 */

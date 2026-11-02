@@ -14,6 +14,14 @@
 #endif
 static Canteen state, backup; /* 当前状态、保存失败时用于回滚的副本 */
 static const char *data_path; /* 启动参数指定的数据文件 */
+static void *data_lock;       /* 运行期间持有的文件独占锁 */
+
+/* atexit同时覆盖菜单退出和输入EOF退出，保证释放文件锁。 */
+static void release_lock(void)
+{
+    unlock_data(data_lock);
+    data_lock = NULL;
+}
 
 /* 读取整行；超长行全部丢弃，EOF按正常退出处理。 */
 static void input(const char *prompt, char *out, int size)
@@ -40,13 +48,10 @@ static void input(const char *prompt, char *out, int size)
 /* 只接受完整非负整数，失败返回-1供上层拒绝操作。 */
 static int number(const char *prompt)
 {
-    char text[80], *end; /* 输入缓冲区及转换结束位置 */
-    long n;              /* 转换后的数值 */
+    char text[80]; /* 输入缓冲区 */
+    int n;         /* 转换后的数值 */
     input(prompt, text, sizeof(text));
-    if (!*text || strspn(text, "0123456789") != strlen(text))
-        return -1;
-    n = strtol(text, &end, 10);
-    return *end || n < 0 || n > INT_MAX ? -1 : (int)n;
+    return parse_integer(text, &n) ? n : -1;
 }
 static int money(void)
 {
@@ -225,6 +230,13 @@ int console_run(const char *path)
     SetConsoleCP(CP_UTF8);
 #endif
     data_path = path;
+    data_lock = lock_data(path);
+    if (!data_lock)
+    {
+        puts("数据文件已被其他程序占用，或目录不可写。请关闭另一个实例后重试。");
+        return 1;
+    }
+    atexit(release_lock);
     if (!load_data(&state, data_path))
     {
         puts("数据文件无法读取或格式损坏。请检查文件；程序不会覆盖原文件。");

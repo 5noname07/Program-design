@@ -1,6 +1,8 @@
 build/
 build-qt/
+dist/
 *.tmp
+*.lock
 core_tests.exe
 *.exe
 test_state.txt

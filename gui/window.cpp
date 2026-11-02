@@ -13,8 +13,11 @@ void Window::message(const QString &text)
 
 QString Window::text(const QString &title, bool secret)
 {
-    return QInputDialog::getText(this, title, title,
-                                 secret ? QLineEdit::Password : QLineEdit::Normal);
+    bool ok = false; // 对话框是否确认
+    QString value = QInputDialog::getText(
+        this, title, title, secret ? QLineEdit::Password : QLineEdit::Normal, QString(), &ok);
+    inputCanceled = !ok;
+    return value;
 }
 
 int Window::number(const QString &title)
@@ -28,12 +31,20 @@ int Window::amount()
 {
     int cents = 0;                                                // C解析器输出
     QByteArray bytes = text("金额（元，最多两位小数）").toUtf8(); // 保证输入存活至函数结束
-    return parse_money(bytes.constData(), &cents) ? cents : -1;
+    if (inputCanceled)
+        return -1;
+    if (!parse_money(bytes.constData(), &cents))
+    {
+        message("金额须为正数，最多两位小数且不能超限。");
+        return -1;
+    }
+    return cents;
 }
 
 void Window::button(const QString &label, std::function<void()> callback)
 {
     auto *b = new QPushButton(label, this); // Qt父对象负责释放
+    b->setMinimumHeight(34);
     actions->addWidget(b);
     connect(b, &QPushButton::clicked, this, callback);
 }
@@ -149,6 +160,8 @@ void Window::editDish(bool create)
     if (name.isEmpty())
         return;
     int cents = amount(); // 菜品单价
+    if (cents < 0)
+        return;
     change([&] { return put_dish(state.get(), id, name.constData(), cents); });
 }
 
@@ -170,7 +183,10 @@ void Window::rebuild()
                {
                    QString expected = qEnvironmentVariable("CANTEEN_ADMIN_PASSWORD",
                                                            "admin123"); // 环境变量覆盖演示密码
-                   if (text("管理员密码", true) == expected)
+                   QString password = text("管理员密码", true);         // 取消登录直接返回
+                   if (inputCanceled)
+                       return;
+                   if (password == expected)
                    {
                        role = 1;
                        rebuild();
@@ -182,6 +198,8 @@ void Window::rebuild()
                [this]
                {
                    int id = number("就餐卡号"), i = card_index(state.get(), id); // 登录对象
+                   if (id < 0)
+                       return;
                    if (i < 0 || state->cards[i].lost)
                    {
                        message("卡不存在或已挂失。");
@@ -194,7 +212,13 @@ void Window::rebuild()
         return;
     }
     button("菜单", [this] { dishes(); });
-    button("查询菜品", [this] { dishes(text("菜名关键字")); });
+    button("查询菜品",
+           [this]
+           {
+               QString keyword = text("菜名关键字");
+               if (!inputCanceled)
+                   dishes(keyword);
+           });
     if (role == 1)
     {
         button("办卡",
@@ -215,12 +239,16 @@ void Window::rebuild()
                    if (id < 0)
                        return;
                    int cents = amount();
+                   if (cents < 0)
+                       return;
                    change([&] { return recharge(state.get(), id, cents); });
                });
         button("挂失/解挂",
                [this]
                {
                    int id = number("卡号"), i = card_index(state.get(), id); // 目标卡
+                   if (id < 0)
+                       return;
                    if (i < 0)
                    {
                        message("卡不存在。");
@@ -252,9 +280,19 @@ void Window::rebuild()
                [this]
                {
                    int id = number("购买菜品编号");
-                   if (id > 0 &&
-                       QMessageBox::question(this, "确认购买", "确认购买一份并扣款？") ==
-                           QMessageBox::Yes)
+                   if (id < 0)
+                       return;
+                   int index = dish_index(state.get(), id); // 成交确认前验证菜品
+                   if (index < 0 || !state->dishes[index].active)
+                   {
+                       message("菜品不存在或已下架。");
+                       return;
+                   }
+                   const Dish &dish = state->dishes[index]; // 用当前价格展示确认详情
+                   QString details = QString("菜品：%1\n数量：1份\n扣款：%2元\n确认购买？")
+                                         .arg(QString::fromUtf8(dish.name))
+                                         .arg(money(dish.price));
+                   if (QMessageBox::question(this, "确认购买", details) == QMessageBox::Yes)
                        change([&] { return purchase(state.get(), studentId, id); });
                });
     }
@@ -271,15 +309,27 @@ void Window::rebuild()
 
 Window::Window(QString file) : path(std::move(file))
 {
+    dataLock = lock_data(path.toLocal8Bit().constData());
+    if (!dataLock)
+        throw std::runtime_error("数据文件已被其他程序占用，或目录不可写。");
     if (!load_data(state.get(), path.toLocal8Bit().constData()))
+    {
+        unlock_data(dataLock);
+        dataLock = nullptr;
         throw std::runtime_error("数据文件读取失败，请检查路径和格式。");
+    }
     setWindowTitle("食堂自动化管理系统 · 课题15");
-    resize(1280, 720);
+    resize(1120, 820);
+    setMinimumSize(800, 700);
     auto *layout = new QVBoxLayout(this);                 // 主布局
     auto *title = new QLabel("食堂自动化管理系统", this); // 界面标题
     title->setStyleSheet("font-size:26px;font-weight:bold;color:#164e63;padding:12px;");
     summary = new QLabel(this);
-    actions = new QHBoxLayout;
+    auto *body = new QHBoxLayout;      // 侧栏与内容区
+    auto *sidebar = new QWidget(this); // 固定宽度操作区
+    sidebar->setFixedWidth(160);
+    actions = new QVBoxLayout(sidebar);
+    actions->setAlignment(Qt::AlignTop);
     table = new QTableWidget(this);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -287,11 +337,28 @@ Window::Window(QString file) : path(std::move(file))
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     layout->addWidget(title);
     layout->addWidget(summary);
-    layout->addLayout(actions);
-    layout->addWidget(table);
+    body->addWidget(sidebar);
+    body->addWidget(table, 1);
+    layout->addLayout(body, 1);
+    auto *clock = new QLabel(this); // 电脑实时时钟，每秒刷新
+    auto updateClock = [clock]
+    {
+        clock->setText("电脑时间：" +
+                       QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+    };
+    auto *timer = new QTimer(this); // 父对象负责释放计时器
+    connect(timer, &QTimer::timeout, this, updateClock);
+    timer->start(1000);
+    updateClock();
+    layout->addWidget(clock);
     setStyleSheet("QWidget{font-family:'Microsoft YaHei';font-size:13px;} "
                   "QPushButton{padding:8px;background:#e0f2fe;border:1px solid "
                   "#bae6fd;border-radius:4px;} "
                   "QHeaderView::section{background:#164e63;color:white;padding:8px;}");
     rebuild();
+}
+
+Window::~Window()
+{
+    unlock_data(dataLock);
 }

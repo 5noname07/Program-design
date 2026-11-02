@@ -5,8 +5,11 @@ int main(int argc, char **argv)
     QApplication app(argc, argv); // Qt事件循环
     try
     {
-        Window window(argc > 1 ? QString::fromLocal8Bit(argv[1])
-                               : QString("data/canteen.txt")); // 主窗口
+        QString defaultPath =
+            QApplication::applicationDirPath() + "/data/canteen.txt"; // 发布目录优先
+        if (!QFileInfo::exists(defaultPath))
+            defaultPath = "data/canteen.txt";
+        Window window(argc > 1 ? QString::fromLocal8Bit(argv[1]) : defaultPath); // 主窗口
         window.show();
         return app.exec();
     }

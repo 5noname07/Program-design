@@ -14,6 +14,10 @@ extern "C"
      * 本模块不弹窗，不退出进程，由调用者决定错误处理。 */
     int load_data(Canteen *s, const char *path);
     int save_data(const Canteen *s, const char *path);
+    /* 进程级独占访问：path为数据文件，返回锁句柄；失败返回NULL。
+     * 界面启动后持有直到退出，防止字符版与Qt同时覆盖同一份数据。 */
+    void *lock_data(const char *path);
+    void unlock_data(void *lock);
 
 #ifdef __cplusplus
 }

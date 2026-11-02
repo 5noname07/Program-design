@@ -18,6 +18,8 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QFileInfo>
+#include <QTimer>
+#include <QDateTime>
 #include <memory>
 #include <functional>
 #include <stdexcept>
@@ -30,7 +32,9 @@ class Window : public QWidget
     int role = 0, studentId = 0;                   // 0未登录，1管理员，2学生；当前学生卡号
     QLabel *summary;                               // 当前身份和余额
     QTableWidget *table;                           // 菜单、卡信息或流水展示区
-    QHBoxLayout *actions;                          // 根据身份动态建立的操作按钮
+    QVBoxLayout *actions;                          // 侧栏操作，避免横向按钮挤出窗口
+    void *dataLock = nullptr;                      // 持有独占存档锁直到窗口销毁
+    bool inputCanceled = false;                    // 区分用户取消与输入错误
 
     // 金额显示统一保留两位小数，业务数据仍然是整数分。
     QString money(long long cents);
@@ -53,5 +57,6 @@ class Window : public QWidget
 
   public:
     explicit Window(QString file);
+    ~Window() override;
 };
 #endif

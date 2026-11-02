@@ -13,6 +13,10 @@ extern "C"
     /* text为元单位金额，只接受正数、最多两位小数；cents指向输出分值。
      * 返回1成功；0表示格式错误或超限，此时不修改输出值。 */
     int parse_money(const char *text, int *cents);
+    /* 非负十进制整数，拒绝符号、空白和超出int范围的输入；失败不修改value。 */
+    int parse_integer(const char *text, int *value);
+    /* 检查YYYY-MM-DDTHH:MM:SS格式及真实日历日期，包括闰年。 */
+    int valid_timestamp(const char *text);
 
 #ifdef __cplusplus
 }
