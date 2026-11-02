@@ -1,0 +1,7 @@
+build/
+build-qt/
+*.tmp
+core_tests.exe
+*.exe
+test_state.txt
+test_bad.txt
