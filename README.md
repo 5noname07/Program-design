@@ -1,18 +1,19 @@
-# 食堂自动化管理系统
+# 食堂自动化管理系统 默认终端版
 
 ## 下载
 
-- **Windows图形版与控制台版（无需安装Qt）**：[打开最新Release](https://github.com/5noname07/Program-design/releases/latest)，下载附件`Canteen-v1.0.0-Windows-x64.zip`，完整解压后双击`canteen_gui.exe`。管理员默认密码`admin123`，学生测试卡号`1001`。
-- **v1.0.0源码**：[下载源码ZIP](https://github.com/5noname07/Program-design/archive/refs/tags/v1.0.0.zip)。源码需要自行编译，步骤见下文。
-- **最新开发源码**：[下载main分支ZIP](https://github.com/5noname07/Program-design/archive/refs/heads/main.zip)，或执行`git clone https://github.com/5noname07/Program-design.git`。
+- **v1.1.0纯终端版**：[下载Release](https://github.com/5noname07/Program-design/releases/tag/v1.1.0)，选择`Canteen-v1.1.0-Console-Windows-x64.zip`。完整解压后双击`Start-Console.cmd`，或在解压目录运行`canteen.exe`。无需Qt。
+- **仅终端源码包**：同一Release下载`Canteen-v1.1.0-Console-Source.zip`，只含终端所需文件，不含Qt代码和课程参考资料，适合终端版提交。
+- **完整仓库源码**：[下载main分支ZIP](https://github.com/5noname07/Program-design/archive/refs/heads/main.zip)，保留默认终端版和可选Qt版。
+- **可选图形版**：[原v1.0.0图形版](https://github.com/5noname07/Program-design/releases/tag/v1.0.0)。本次终端版交付无需使用它。
 
-可运行包仅面向Windows x64；源码可在适配的平台编译。请完整解压，保留DLL、插件和`data`文件夹，不要只复制exe。升级前备份自己的`data/canteen.txt`，避免用演示存档覆盖个人数据。
+终端版保留全部卡管理、菜品管理、购买、消费记录、统计与文件保存功能。默认只启用C99编译，不查找Qt，不需要C++工具链。Windows发布程序静态链接编译器运行库，仅依赖Windows系统DLL。升级前备份个人存档，避免被演示数据覆盖。
 
 对应《1 B250122_课题》课题15。业务核心、文件读写和字符菜单采用C99；可选图形界面采用Qt Widgets与C++，通过`extern "C"`调用C核心。无需数据库、Web服务或第三方业务库。CMake仅用于构建。本次没有编写或修改实习报告。
 
 ## 直接运行
 
-本机图形版已经编译并打包，可双击项目根目录的`启动图形版.cmd`，或运行`dist/canteen_gui.exe`。请保留整个`dist`目录及其中的DLL、插件和`data`文件夹。图形版默认使用`dist/data/canteen.txt`，字符版默认使用项目的`data/canteen.txt`；指定同一个绝对路径可共用存档，同一时刻只允许一个界面打开该文件。
+本地双击`启动终端版.cmd`即可运行。终端发布目录为`dist-console`，图形发布目录为`dist`；分别保存数据。两个目录都是编译产物，不进入Git，另一台电脑应下载Release附件。
 
 在项目目录打开PowerShell，运行：
 
@@ -51,15 +52,15 @@ gcc -std=c99 -Wall -Wextra -Wpedantic -Werror -I include src/card.c src/dish.c s
 也可使用CMake：
 
 ```powershell
-cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-ctest --test-dir build --output-on-failure
-.\build\canteen.exe
+cmake -S . -B build-console -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build-console
+ctest --test-dir build-console --output-on-failure
+.\build-console\canteen.exe
 ```
 
 使用Visual Studio时，采用其CMake工具链，省略`-G "MinGW Makefiles"`。本实现使用C99和现代Qt工具链，未承诺兼容VC++6.0等旧编译器；课题允许选择熟悉的开发平台。
 
-## Qt图形界面
+## 可选Qt图形界面 默认不编译
 
 `gui/main.cpp`负责启动，`gui/window.h/.cpp`实现界面。包含身份登录、办卡、充值、挂失解挂、菜单管理与搜索、购买确认、历史流水、销售排行及学生卡使用统计。图形界面的业务和存档格式与字符版共用。表格只读，操作通过按钮及输入框完成。
 
@@ -84,7 +85,7 @@ ctest --test-dir build-qt --output-on-failure
 
 1. `include/canteen_types.h`定义公共数据类型；`card.h/.c`负责学生卡，`dish.h/.c`负责菜单。建议一位成员负责这些业务模块。
 2. `consumption.h/.c`负责扣款与流水，`statistics.h/.c`负责排名和消费汇总，`storage.h/.c`负责文件存取，`validation.h/.c`负责输入校验。建议一位成员负责消费、统计和存储。
-3. `console.h`与`src/console.c`负责字符交互；`gui/window.h`声明Qt窗口，`gui/window.cpp`实现窗口方法；两个`main`文件仅负责启动。建议一位成员负责界面、测试和集成。
+3. `console.h`与`src/console.c`负责终端交互；`statistics.h/.c`负责统计，`tests/test_core.c`负责核心测试。建议一位成员负责这些C模块与集成。三位成员均可围绕终端C代码分工，Qt不属于当前交付要求。
 
 每个模块的`.h`声明接口、参数和返回值，`.c`实现函数。调用方按需包含头文件，所有实现文件分别编译后链接，不通过包含`.c`拼接代码。`include/canteen.h`仅保留为兼容原调用的聚合头文件。统计计算由C模块统一提供，字符版和Qt版只展示结果。
 以上只是后续协作建议，不代表三个人已经完成的贡献。课程要求每位成员实际参与编程，后续按真实代码与工作量记录贡献比例。
@@ -131,3 +132,9 @@ ctest --test-dir build-qt --output-on-failure
 - 稳健性：整数与金额在运算前检查溢出；损坏存档拒绝加载，消费记录容量满时拒绝扣款。
 
 生成全新演示存档：./build/seed_demo.exe data/new_demo.txt。消费记录的时间就是执行该命令时的电脑时间，生成文件不用于伪造过去的消费。
+
+## 终端版打包
+
+执行`./tools/package_console.ps1`生成`dist-console`，只复制终端程序、TXT数据及启动脚本，不调用Qt部署工具，也不覆盖发布目录中已有的存档。程序运行不依赖此打包脚本。项目根目录的`启动终端版.cmd`会优先使用终端发布程序，并自动传入存档路径。
+
+终端源码包只包含C模块、头文件、CMake、核心测试、演示数据及终端工具。完整仓库中只有设置`BUILD_QT_GUI=ON`才启用C++及Qt。终端与图形版使用相同的TXT格式，显式传入同一文件路径可切换使用，独占锁禁止同时打开。

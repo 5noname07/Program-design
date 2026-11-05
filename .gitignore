@@ -1,6 +1,8 @@
 build/
 build-qt/
 dist/
+dist-console/
+build-console/
 *.tmp
 *.lock
 core_tests.exe
